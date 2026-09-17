@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "UEI Charging (Demo)",
+    "slug": "uei-charging",
+    "scheme": "uei-charging",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "android": { "package": "in.uei.charging.demo" },
+    "ios": {
+      "bundleIdentifier": "in.uei.charging.demo",
+      "supportsTablet": true
+    },
+    "plugins": ["expo-secure-store"]
+  }
+}

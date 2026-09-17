@@ -1,0 +1,13 @@
+{
+  "name": "@uei/database",
+  "version": "0.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.0",
+    "@uei/config": "workspace:*"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "@uei/domain",
+  "version": "0.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@uei/database": "workspace:*",
+    "@uei/config": "workspace:*",
+    "zod": "^4.1.11",
+    "jose": "^6.1.0"
+  }
+}

@@ -1,0 +1,291 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String        @id @default(uuid()) @db.Uuid
+  phone     String        @unique
+  role      String        @default("CONSUMER")
+  createdAt DateTime      @default(now())
+  sessions  UserSession[]
+  vehicles  UserVehicle[]
+}
+
+model OtpChallenge {
+  phone       String   @id
+  codeHash    String
+  expiresAt   DateTime
+  requestedAt DateTime @default(now())
+  attempts    Int      @default(0)
+  consumed    Boolean  @default(false)
+}
+
+model UserSession {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
+  user         User      @relation(fields: [userId], references: [id])
+  familyId     String    @db.Uuid
+  accessHash   String    @unique
+  refreshHash  String    @unique
+  accessUntil  DateTime
+  refreshUntil DateTime
+  rotatedAt    DateTime?
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([familyId])
+}
+
+model VehicleMake {
+  id     String         @id
+  name   String
+  models VehicleModel[]
+}
+
+model VehicleModel {
+  id       String           @id
+  name     String
+  makeId   String
+  make     VehicleMake      @relation(fields: [makeId], references: [id])
+  variants VehicleVariant[]
+}
+
+model VehicleVariant {
+  id         String                       @id
+  name       String
+  modelId    String
+  model      VehicleModel                 @relation(fields: [modelId], references: [id])
+  batteryKwh Decimal                      @db.Decimal(10, 3)
+  connectors VehicleConnectorCapability[]
+  vehicles   UserVehicle[]
+}
+
+model VehicleConnectorCapability {
+  id        String         @id @default(uuid()) @db.Uuid
+  variantId String
+  variant   VehicleVariant @relation(fields: [variantId], references: [id])
+  connector String
+  maxKw     Decimal        @db.Decimal(10, 3)
+
+  @@unique([variantId, connector])
+}
+
+model UserVehicle {
+  id        String         @id @default(uuid()) @db.Uuid
+  userId    String         @db.Uuid
+  user      User           @relation(fields: [userId], references: [id])
+  variantId String
+  variant   VehicleVariant @relation(fields: [variantId], references: [id])
+  nickname  String
+  createdAt DateTime       @default(now())
+
+  @@unique([userId, variantId])
+}
+
+model NetworkParticipant {
+  id   String @id
+  name String
+  uri  String
+}
+
+model BecknTransaction {
+  id        String         @id @default(uuid()) @db.Uuid
+  userId    String         @db.Uuid
+  kind      String
+  createdAt DateTime       @default(now())
+  messages  BecknMessage[]
+}
+
+model BecknMessage {
+  id            String           @id @default(uuid()) @db.Uuid
+  transactionId String           @db.Uuid
+  transaction   BecknTransaction @relation(fields: [transactionId], references: [id])
+  messageId     String           @db.Uuid
+  providerId    String
+  action        String
+  direction     String
+  payload       Json
+  ack           String?
+  error         String?
+  createdAt     DateTime         @default(now())
+
+  @@unique([transactionId, messageId, providerId, action, direction])
+}
+
+model DiscoveryRequest {
+  id            String            @id @default(uuid()) @db.Uuid
+  userId        String            @db.Uuid
+  vehicleId     String            @db.Uuid
+  transactionId String            @unique @db.Uuid
+  latitude      Decimal           @db.Decimal(10, 7)
+  longitude     Decimal           @db.Decimal(10, 7)
+  closesAt      DateTime
+  createdAt     DateTime          @default(now())
+  results       DiscoveryResult[]
+}
+
+model DiscoveryResult {
+  id         String           @id @default(uuid()) @db.Uuid
+  searchId   String           @db.Uuid
+  search     DiscoveryRequest @relation(fields: [searchId], references: [id])
+  providerId String
+  itemId     String
+  name       String
+  connector  String
+  pricePaise Int
+  latitude   Decimal          @db.Decimal(10, 7)
+  longitude  Decimal          @db.Decimal(10, 7)
+  raw        Json
+  createdAt  DateTime         @default(now())
+
+  @@unique([searchId, providerId, itemId])
+}
+
+model Order {
+  id                String          @id @default(uuid()) @db.Uuid
+  userId            String          @db.Uuid
+  vehicleId         String          @db.Uuid
+  discoveryResultId String          @db.Uuid
+  transactionId     String          @unique @db.Uuid
+  providerId        String
+  state             String
+  paymentTerms      Json?
+  rawPaymentTerms   Json?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  quotes            QuoteSnapshot[]
+  payment           Payment?
+
+  @@index([userId, createdAt])
+}
+
+model Payment {
+  id                String           @id @default(uuid()) @db.Uuid
+  orderId           String           @unique @db.Uuid
+  order             Order            @relation(fields: [orderId], references: [id])
+  transactionId     String           @unique @db.Uuid
+  userId            String           @db.Uuid
+  method            String
+  collector         String
+  capability        String
+  amountPaise       Int
+  currency          String           @default("INR")
+  state             String           @default("CREATED")
+  providerReference String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  attempts          PaymentAttempt[]
+  events            PaymentEvent[]
+  refunds           Refund[]
+
+  @@index([state, updatedAt])
+}
+
+model PaymentAttempt {
+  id                String   @id @default(uuid()) @db.Uuid
+  paymentId         String   @db.Uuid
+  payment           Payment  @relation(fields: [paymentId], references: [id])
+  state             String
+  amountPaise       Int
+  providerReference String?
+  failureReason     String?
+  createdAt         DateTime @default(now())
+
+  @@index([paymentId, createdAt])
+}
+
+model PaymentEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  paymentId String   @db.Uuid
+  payment   Payment  @relation(fields: [paymentId], references: [id])
+  kind      String
+  detail    Json
+  createdAt DateTime @default(now())
+
+  @@index([paymentId, createdAt])
+}
+
+model Refund {
+  id          String    @id @default(uuid()) @db.Uuid
+  paymentId   String    @db.Uuid
+  payment     Payment   @relation(fields: [paymentId], references: [id])
+  amountPaise Int
+  state       String    @default("REFUND_PENDING")
+  reason      String?
+  createdAt   DateTime  @default(now())
+  resolvedAt  DateTime?
+}
+
+model QuoteSnapshot {
+  id          String   @id @default(uuid()) @db.Uuid
+  orderId     String   @db.Uuid
+  order       Order    @relation(fields: [orderId], references: [id])
+  amountPaise Int
+  currency    String   @default("INR")
+  expiresAt   DateTime
+  raw         Json
+  createdAt   DateTime @default(now())
+}
+
+model InboxEvent {
+  id            String   @id @default(uuid()) @db.Uuid
+  key           String   @unique
+  payloadHash   String
+  transactionId String   @db.Uuid
+  status        String
+  createdAt     DateTime @default(now())
+}
+
+model OutboxEvent {
+  id            String    @id @default(uuid()) @db.Uuid
+  transactionId String    @db.Uuid
+  messageId     String    @db.Uuid
+  kind          String
+  payload       Json
+  state         String    @default("PENDING")
+  availableAt   DateTime  @default(now())
+  leaseUntil    DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([state, availableAt])
+}
+
+model IdempotencyKey {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  scope       String
+  key         String
+  requestHash String
+  resultId    String   @db.Uuid
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, scope, key])
+}
+
+model ReconciliationIssue {
+  id            String    @id @default(uuid()) @db.Uuid
+  transactionId String    @db.Uuid
+  reason        String
+  resolvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@unique([transactionId, reason])
+}
+
+model AuditLog {
+  id            Int      @id @default(autoincrement())
+  transactionId String   @db.Uuid
+  userId        String   @db.Uuid
+  action        String
+  before        String?
+  after         String?
+  detail        Json
+  createdAt     DateTime @default(now())
+
+  @@index([transactionId, id])
+}

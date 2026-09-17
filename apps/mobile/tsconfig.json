@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "experimentalDecorators": false,
+    "emitDecoratorMetadata": false
+  },
+  "include": ["src", "App.tsx", "index.ts"]
+}

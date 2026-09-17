@@ -1,0 +1,35 @@
+{
+  "name": "uei",
+  "private": true,
+  "packageManager": "pnpm@10.17.1",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "dev": "turbo dev",
+    "typecheck": "turbo typecheck",
+    "lint": "eslint apps packages tests prisma --max-warnings=0",
+    "build": "turbo build",
+    "test": "vitest run --no-file-parallelism",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "prisma": "prisma",
+    "format": "prettier --write apps packages tests prisma *.json *.yaml"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.36.0",
+    "@types/node": "^24.0.0",
+    "eslint": "^9.36.0",
+    "typescript-eslint": "^8.44.0",
+    "prettier": "^3.6.2",
+    "prisma": "6.19.0",
+    "tsx": "^4.20.5",
+    "turbo": "^2.5.8",
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.4"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}
