@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.5
+        env:
+          POSTGRES_USER: uei
+          POSTGRES_PASSWORD: uei_local
+          POSTGRES_DB: uei
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U uei"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7.4-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: cp .env.example .env
+
+      - name: Provision databases
+        env:
+          PGURL: postgresql://uei:uei_local@127.0.0.1:5432
+        run: |
+          echo "CREATE EXTENSION IF NOT EXISTS postgis;" | pnpm exec prisma db execute --url "$PGURL/uei" --stdin
+          echo "CREATE DATABASE uei_test;" | pnpm exec prisma db execute --url "$PGURL/postgres" --stdin
+          echo "CREATE EXTENSION IF NOT EXISTS postgis;" | pnpm exec prisma db execute --url "$PGURL/uei_test" --stdin
+
+      - run: pnpm db:generate
+
+      - name: Migrate and seed databases
+        env:
+          PGURL: postgresql://uei:uei_local@127.0.0.1:5432
+        run: |
+          pnpm db:migrate
+          pnpm db:seed
+          DATABASE_URL="$PGURL/uei_test?schema=public" pnpm db:migrate
+          DATABASE_URL="$PGURL/uei_test?schema=public" pnpm db:seed
+
+      - run: pnpm typecheck
+
+      - run: pnpm lint
+
+      - name: Test
+        env:
+          DATABASE_URL: postgresql://uei:uei_local@127.0.0.1:5432/uei_test?schema=public
+          RUN_DB_TESTS: '1'
+        run: pnpm test

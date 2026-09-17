@@ -45,7 +45,7 @@ Validation (2026-09-17): all seven workspace TypeScript checks passed, ESLint pa
 - [ ] Real Beckn-ONIX signing/schema-validation/routing (currently `infra/onix/` is a placeholder README only).
 - [ ] Native Android emulator/device run (never executed; simulator/API-only so far).
 - [ ] iOS build validation pass.
-- [ ] `.github/workflows` CI.
+- [x] `.github/workflows` CI: typecheck, lint and the full test suite (including the opt-in database tests) against Postgres/PostGIS and Redis service containers on every push/PR to `master` (`.github/workflows/ci.yml`).
 - [ ] Security review, monitoring, support workflow.
 
 ## Continuation: mobile session recovery (2026-09-16)
