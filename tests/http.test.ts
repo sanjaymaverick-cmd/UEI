@@ -75,6 +75,17 @@ suite("HTTP simulator journey", () => {
     await db.$disconnect();
   });
 
+  it("reports ok health with a reachable database and the open reconciliation issue count", async () => {
+    const result = await request("/health", undefined, "");
+    expect(result.status).toBe(200);
+    expect(result.body).toMatchObject({
+      status: "ok",
+      mode: "simulator",
+      database: "ok",
+    });
+    expect(typeof result.body.openReconciliationIssues).toBe("number");
+  });
+
   it("enforces authentication, strict input, admin access, and callback credentials", async () => {
     expect(await request("/orders", undefined, "")).toMatchObject({
       status: 401,

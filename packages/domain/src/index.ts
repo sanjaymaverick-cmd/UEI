@@ -8,6 +8,7 @@ export * from "./charging";
 export * from "./settlement";
 export * from "./callbacks";
 export * from "./trace";
+export * from "./health";
 export * from "./worker";
 export * from "./protocol";
 export * from "./becknSigning";

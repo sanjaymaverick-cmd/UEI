@@ -5,6 +5,11 @@ import { Queue, Worker } from "bullmq";
 import { getConfig } from "@uei/config";
 import { OutboxWorker } from "@uei/domain";
 
+// The last line of defense: without this, an error outside the tick loop below (e.g. in a
+// fire-and-forget promise) is silently swallowed and never appears in any log.
+process.on("unhandledRejection", (reason) => console.error("Unhandled rejection:", reason));
+process.on("uncaughtException", (error) => console.error("Uncaught exception:", error));
+
 @Module({})
 class WorkerModule {}
 async function main() {
@@ -26,10 +31,10 @@ async function main() {
   worker.on("error", () =>
     console.error("Worker queue unavailable; database polling remains active."),
   );
-  queue.on("error", () => {});
+  queue.on("error", (error) => console.error("Outbox queue error:", error.message));
   void queue
     .upsertJobScheduler("outbox-tick", { every: 1000 }, { name: "drain" })
-    .catch(() => {});
+    .catch((error: Error) => console.error("Failed to schedule outbox drain; the 1s poll loop still runs:", error.message));
   const timer = setInterval(() => {
     void pump
       .tick()

@@ -9,6 +9,7 @@ import {
   Get,
   Headers,
   HttpCode,
+  Logger,
   Module,
   Param,
   Post,
@@ -28,6 +29,7 @@ import {
   SettlementService,
   CallbackService,
   TraceService,
+  HealthService,
   DomainError,
   phoneSchema,
   idSchema,
@@ -46,6 +48,7 @@ const charging = new ChargingService();
 const settlement = new SettlementService();
 const callbacks = new CallbackService();
 const traces = new TraceService();
+const health = new HealthService();
 async function actor(header: string | undefined, admin = false) {
   if (!header?.startsWith("Bearer "))
     throw new DomainError("AUTH_REQUIRED", "Please sign in.", 401);
@@ -56,6 +59,7 @@ async function actor(header: string | undefined, admin = false) {
 }
 @Catch()
 class Errors implements ExceptionFilter {
+  private readonly logger = new Logger("Errors");
   catch(error: unknown, host: ArgumentsHost) {
     const response = host.switchToHttp().getResponse<Response>();
     if (error instanceof DomainError)
@@ -78,6 +82,9 @@ class Errors implements ExceptionFilter {
       typeof error.getStatus === "function"
         ? Number(error.getStatus())
         : 500;
+    // The client only ever sees the masked message below; this is the only record of what broke.
+    if (status === 500)
+      this.logger.error(error instanceof Error ? error.stack ?? error.message : error);
     return response.status(status).json({
       code: status === 500 ? "INTERNAL_ERROR" : "INVALID_REQUEST",
       message:
@@ -88,8 +95,8 @@ class Errors implements ExceptionFilter {
 }
 @Controller("v1")
 class ApiController {
-  @Get("health") health() {
-    return { status: "ok", mode: "simulator" };
+  @Get("health") checkHealth() {
+    return health.check();
   }
   @Post("auth/request-otp") @HttpCode(200) requestOtp(@Body() body: unknown) {
     return auth.requestOtp(

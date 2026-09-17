@@ -46,7 +46,8 @@ Validation (2026-09-17): all seven workspace TypeScript checks passed, ESLint pa
 - [x] Native Android emulator/device run: built and installed the debug dev-client APK via `expo run:android` on a local Pixel 7 / API 35 (`google_apis_playstore`) AVD, launched it, and completed a real sign-in (OTP request → verify → token issuance → navigation into the authenticated Vehicles screen) against the actual API/Postgres/Redis stack running on the host (2026-09-17).
 - [ ] iOS build validation pass (unreachable from this Windows machine; requires macOS/Xcode).
 - [x] `.github/workflows` CI: typecheck, lint and the full test suite (including the opt-in database tests) against Postgres/PostGIS and Redis service containers on every push/PR to `master` (`.github/workflows/ci.yml`).
-- [ ] Security review, monitoring, support workflow.
+- [x] Security review (2026-09-17): audited auth/session, the new ONIX signing code, payment/settlement, and callback handling. No HIGH/MEDIUM findings — admin checks, cross-user isolation, timing-safe comparisons, and refresh-token reuse detection all held up. See the continuation note below.
+- [x] Monitoring/support workflow, scoped to what's buildable without a real third-party account (2026-09-17): `/v1/health` now pings the database and reports the open-reconciliation-issue count instead of a static `ok`; unexpected (500) errors are logged server-side instead of silently masked; `apps/api`/`apps/worker` both have `unhandledRejection`/`uncaughtException` safety nets; `docs/OPERATIONS.md` documents every reconciliation-issue reason code, which self-heal vs. need manual resolution, and how to check health/logs. **No external error-tracking/alerting/on-call service is wired in** — that needs a real account with whichever provider is chosen, the same class of blocker as ONIX credentials.
 
 ### Continuation: Android emulator validation (2026-09-17)
 
@@ -65,6 +66,15 @@ Android/iOS native execution beyond this one smoke test (release builds, deeper 
 - Nothing here is reachable from the running app: no `PROTOCOL_MODE=live` path exists, `@uei/config` still hard-fails on `PROTOCOL_MODE=live`, and `OnixAdapter` requires a real `SchemaValidator` (no permissive default) to even construct.
 - Validation: 11 new Vitest tests (signing round trip/tamper/expiry/header parsing, adapter construction/submit/NACK/schema-rejection), all passing alongside the existing 35 (46 total); ESLint and all seven workspace TypeScript checks passed.
 - The signing-string/digest details are implemented from the public Beckn Protocol Network convention, not verified against an authoritative spec document for a specific network — see `infra/onix/README.md` for what remains before this can be trusted for real interop or wired in.
+
+### Continuation: security review, monitoring, and support runbook (2026-09-17)
+
+- Security review of `auth.ts`, `becknSigning.ts`, `onix.ts`, `payments.ts`, `settlement.ts`, `callbacks.ts`, `core.ts`, `config`, and `application.ts` found no HIGH/MEDIUM-confidence vulnerabilities. One low-confidence (3/10) design note — `mapEnvelopeToCallback` isn't structurally coupled to `verifyInboundCallback` — was addressed with a comment documenting the required call order, since it's currently unreachable rather than exploitable.
+- Added `packages/domain/src/health.ts` (`HealthService.check()`: DB ping + open-`ReconciliationIssue` count) and wired it into `GET /v1/health`, replacing the previous static `{status:"ok"}`.
+- `apps/api`'s global exception filter now logs unexpected (500) errors server-side before masking them in the response — previously they were completely silent. Both `apps/api` and `apps/worker` gained `unhandledRejection`/`uncaughtException` process-level logging, and the worker's previously-silent `queue.on("error")`/`upsertJobScheduler` failure paths now log too.
+- Added `docs/OPERATIONS.md`: what `/v1/health` means, and a full table of every `ReconciliationIssue` reason code, which ones self-heal versus need direct DB intervention, and where to look for each.
+- Explicitly not built: any external error-tracking/log-aggregation/alerting/on-call service — that requires a real account with whichever provider is chosen, not something to fabricate.
+- Validation: 47 Vitest tests passed (1 new — `/v1/health` against a real database), ESLint passed, and typecheck passed for the touched workspaces (`apps/api`, `apps/worker`, `packages/domain`).
 
 ## Continuation: mobile session recovery (2026-09-16)
 
