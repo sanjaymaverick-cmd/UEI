@@ -138,6 +138,9 @@ export async function verifyInboundCallback(
 // paymentTerms, confirmation, session) here. The result is untyped on purpose — callers must run
 // it through `callbackSchema.parse` (see ./core) to get a validated Callback, which is also where
 // the SchemaValidator's own approval should be enforced before this is trusted.
+// This function does not call `verifyInboundCallback` itself and nothing enforces the order —
+// whoever wires this into a real HTTP route must call `verifyInboundCallback` on the raw body
+// first and only map/trust the envelope after it resolves without throwing.
 export function mapEnvelopeToCallback(
   envelope: BecknEnvelope,
   requestMessageId: string,
