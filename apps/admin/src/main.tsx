@@ -42,6 +42,8 @@ type Trace = Transaction & {
     collector: string;
     capability: string;
     amountPaise: number;
+    capturedPaise: number;
+    releasedPaise: number;
     providerReference: string | null;
     attempts: {
       id: string;
@@ -50,6 +52,37 @@ type Trace = Transaction & {
       failureReason: string | null;
     }[];
     events: { id: string; kind: string; createdAt: string }[];
+    refunds: {
+      id: string;
+      state: string;
+      amountPaise: number;
+      reason: string | null;
+      createdAt: string;
+      resolvedAt: string | null;
+    }[];
+  } | null;
+  order: {
+    invoice: {
+      state: string;
+      energyWh: number;
+      ratePaiseKwh: number;
+      subtotalPaise: number;
+      taxPaise: number;
+      totalPaise: number;
+    } | null;
+    fulfillment: {
+      state: string;
+      session: {
+        id: string;
+        state: string;
+        energyWh: number;
+        startedAt: string | null;
+        endedAt: string | null;
+        measuredAt: string | null;
+        events: { id: string; kind: string; createdAt: string }[];
+        readings: { id: string; measuredAt: string; energyWh: number }[];
+      } | null;
+    } | null;
   } | null;
 };
 let session: Session | null = null; // Deliberately memory-only in the browser.
@@ -58,12 +91,14 @@ async function request<T>(
   path: string,
   body?: unknown,
   retry = true,
+  idempotencyKey?: string,
 ): Promise<T> {
   const response = await fetch(`http://localhost:3000/v1${path}`, {
     method: body === undefined ? "GET" : "POST",
     headers: {
       "Content-Type": "application/json",
       ...(session ? { Authorization: `Bearer ${session.accessToken}` } : {}),
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
@@ -85,7 +120,7 @@ async function request<T>(
         refreshing = null;
       });
     await refreshing;
-    return request(path, body, false);
+    return request(path, body, false, idempotencyKey);
   }
   const value = (await response.json()) as T & { message?: string };
   if (!response.ok) throw new Error(value.message ?? "Request failed.");
@@ -96,6 +131,8 @@ function App() {
   const [phone, setPhone] = useState("+919999999999");
   const [otp, setOtp] = useState("");
   const [selected, setSelected] = useState("");
+  const [refundAmount, setRefundAmount] = useState("");
+  const [refundReason, setRefundReason] = useState("");
   const send = useMutation({
     mutationFn: () => request("/auth/request-otp", { phone }),
   });
@@ -132,11 +169,26 @@ function App() {
     enabled: signedIn && !!selected,
     refetchInterval: signedIn && selected ? 1500 : false,
   });
+  const refund = useMutation({
+    mutationFn: (paymentId: string) =>
+      request(
+        `/admin/payments/${paymentId}/refunds`,
+        { amountPaise: Math.round(Number(refundAmount) * 100), reason: refundReason },
+        true,
+        crypto.randomUUID(),
+      ),
+    onSuccess: () => {
+      setRefundAmount("");
+      setRefundReason("");
+      void trace.refetch();
+    },
+  });
   const error =
     send.error ??
     login.error ??
     transactions.error ??
     trace.error ??
+    refund.error ??
     logout.error;
   return (
     <main>
@@ -294,6 +346,12 @@ function App() {
                         {trace.data.payment.collector} ·{" "}
                         {trace.data.payment.capability}
                       </p>
+                      <p>
+                        Captured ₹
+                        {(trace.data.payment.capturedPaise / 100).toFixed(2)} ·
+                        Released ₹
+                        {(trace.data.payment.releasedPaise / 100).toFixed(2)}
+                      </p>
                       {trace.data.payment.attempts.map((attempt) => (
                         <p key={attempt.id}>
                           {new Date(attempt.createdAt).toLocaleTimeString()} ·{" "}
@@ -303,9 +361,102 @@ function App() {
                             : ""}
                         </p>
                       ))}
+                      <h4>Refunds</h4>
+                      {trace.data.payment.refunds.length === 0 && (
+                        <p>No refunds issued.</p>
+                      )}
+                      {trace.data.payment.refunds.map((item) => (
+                        <p key={item.id}>
+                          {new Date(item.createdAt).toLocaleTimeString()} · ₹
+                          {(item.amountPaise / 100).toFixed(2)} · {item.state}
+                          {item.reason ? ` · ${item.reason}` : ""}
+                        </p>
+                      ))}
+                      {trace.data.payment.state === "SETTLED" && (
+                        <form
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            refund.mutate(trace.data!.payment!.id);
+                          }}
+                        >
+                          <label>
+                            Refund amount (₹)
+                            <input
+                              value={refundAmount}
+                              onChange={(event) =>
+                                setRefundAmount(event.target.value)
+                              }
+                              inputMode="decimal"
+                            />
+                          </label>
+                          <label>
+                            Reason
+                            <input
+                              value={refundReason}
+                              onChange={(event) =>
+                                setRefundReason(event.target.value)
+                              }
+                            />
+                          </label>
+                          <button
+                            disabled={
+                              refund.isPending ||
+                              !refundAmount.trim() ||
+                              !refundReason.trim()
+                            }
+                          >
+                            Issue refund
+                          </button>
+                        </form>
+                      )}
                     </>
                   ) : (
                     <p>No payment has been initiated.</p>
+                  )}
+                  <h3>Charging session</h3>
+                  {trace.data.order?.fulfillment?.session ? (
+                    <>
+                      <p>
+                        {trace.data.order.fulfillment.session.state} ·{" "}
+                        {(
+                          trace.data.order.fulfillment.session.energyWh / 1000
+                        ).toFixed(3)}{" "}
+                        kWh
+                        {trace.data.order.fulfillment.session.startedAt
+                          ? ` · started ${new Date(trace.data.order.fulfillment.session.startedAt).toLocaleTimeString()}`
+                          : ""}
+                        {trace.data.order.fulfillment.session.endedAt
+                          ? ` · ended ${new Date(trace.data.order.fulfillment.session.endedAt).toLocaleTimeString()}`
+                          : ""}
+                      </p>
+                      {trace.data.order.fulfillment.session.events.map(
+                        (event) => (
+                          <p key={event.id}>
+                            {new Date(event.createdAt).toLocaleTimeString()} ·{" "}
+                            {event.kind}
+                          </p>
+                        ),
+                      )}
+                    </>
+                  ) : (
+                    <p>No charging session has started.</p>
+                  )}
+                  <h3>Invoice</h3>
+                  {trace.data.order?.invoice ? (
+                    <p>
+                      {trace.data.order.invoice.state} ·{" "}
+                      {(trace.data.order.invoice.energyWh / 1000).toFixed(3)}{" "}
+                      kWh · Subtotal ₹
+                      {(trace.data.order.invoice.subtotalPaise / 100).toFixed(
+                        2,
+                      )}{" "}
+                      · Tax ₹
+                      {(trace.data.order.invoice.taxPaise / 100).toFixed(2)} ·
+                      Total ₹
+                      {(trace.data.order.invoice.totalPaise / 100).toFixed(2)}
+                    </p>
+                  ) : (
+                    <p>No invoice has been issued.</p>
                   )}
                   <h3>Reconciliation</h3>
                   {trace.data.issues.length === 0 ? (

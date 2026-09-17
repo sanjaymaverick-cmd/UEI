@@ -24,6 +24,8 @@ import {
   DiscoveryService,
   OrderService,
   PaymentService,
+  ChargingService,
+  SettlementService,
   CallbackService,
   TraceService,
   DomainError,
@@ -32,6 +34,7 @@ import {
   keySchema,
   coordinates,
   secureEqual,
+  paiseSchema,
 } from "@uei/domain";
 
 const auth = new AuthService();
@@ -39,6 +42,8 @@ const vehicles = new VehicleService();
 const discovery = new DiscoveryService();
 const orders = new OrderService();
 const payments = new PaymentService();
+const charging = new ChargingService();
+const settlement = new SettlementService();
 const callbacks = new CallbackService();
 const traces = new TraceService();
 async function actor(header: string | undefined, admin = false) {
@@ -215,6 +220,28 @@ class ApiController {
       throw new DomainError("FORBIDDEN", "Invalid callback credentials.", 403);
     return callbacks.receive(body);
   }
+  @Post("orders/:id/start") async startCharging(
+    @Param("id") id: string, @Body() body: unknown,
+    @Headers("idempotency-key") key: string, @Headers("authorization") header?: string,
+  ) {
+    z.object({}).strict().parse(body);
+    return charging.command((await actor(header)).id, idSchema.parse(id), "start-charging", keySchema.parse(key));
+  }
+  @Post("orders/:id/stop") async stopCharging(
+    @Param("id") id: string, @Body() body: unknown,
+    @Headers("idempotency-key") key: string, @Headers("authorization") header?: string,
+  ) {
+    z.object({}).strict().parse(body);
+    return charging.command((await actor(header)).id, idSchema.parse(id), "end-charging", keySchema.parse(key));
+  }
+  @Post("admin/payments/:id/refunds") async refund(
+    @Param("id") id: string, @Body() body: unknown,
+    @Headers("idempotency-key") key: string, @Headers("authorization") header?: string,
+  ) {
+    const user = await actor(header, true);
+    const input = z.object({ amountPaise: paiseSchema.min(1), reason: z.string().trim().min(1).max(500) }).strict().parse(body);
+    return settlement.refund(user.id, idSchema.parse(id), input.amountPaise, input.reason, keySchema.parse(key));
+  }
   @Get("admin/transactions") async transactions(
     @Headers("authorization") header?: string,
   ) {
@@ -252,7 +279,7 @@ class ApiController {
     const send = (events: Awaited<ReturnType<TraceService["events"]>>) => {
       for (const event of events) {
         response.write(
-          `id: ${event.id}\nevent: transition\ndata: ${JSON.stringify({ action: event.action, state: event.after, createdAt: event.createdAt })}\n\n`,
+          `id: ${event.id}\nevent: transition\ndata: ${JSON.stringify({ action: event.action, state: event.after, createdAt: event.createdAt, detail: event.detail })}\n\n`,
         );
         cursor = event.id;
       }

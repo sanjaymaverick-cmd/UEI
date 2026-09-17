@@ -18,6 +18,10 @@ export type Charger = {
   name: string;
   connector: string;
   pricePaise: number;
+  providerId: string;
+  itemId: string;
+  latitude: string | number;
+  longitude: string | number;
 };
 export type Search = {
   id: string;
@@ -40,18 +44,26 @@ export type Order = {
     state: string;
     amountPaise: number;
     method: string;
+    capturedPaise: number;
+    releasedPaise: number;
+    refunds: { id: string; amountPaise: number; state: string }[];
   } | null;
+  fulfillment: { session: {
+    id: string; state: string; startedAt: string | null; endedAt: string | null;
+    energyWh: number; measuredAt: string | null;
+  } | null } | null;
+  invoice: { id: string; state: string; energyWh: number; subtotalPaise: number; taxPaise: number; totalPaise: number; mode: string } | null;
 };
 export type Routes = {
   Phone: undefined;
   Otp: { phone: string };
   Vehicles: undefined;
   Home: { vehicleId: string };
-  Chargers: { searchId: string; vehicleId: string };
+  Chargers: { searchId: string; vehicleId: string; target?: { providerId: string; itemId: string } };
   Detail: { charger: Charger; vehicleId: string };
   Quote: { orderId: string };
   Activity: undefined;
   Profile: undefined;
-  Scanner: undefined;
-  ActiveCharging: undefined;
+  Scanner: { vehicleId: string };
+  ActiveCharging: { orderId: string };
 };

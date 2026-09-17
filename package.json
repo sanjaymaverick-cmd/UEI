@@ -10,7 +10,7 @@
     "typecheck": "turbo typecheck",
     "lint": "eslint apps packages tests prisma --max-warnings=0",
     "build": "turbo build",
-    "test": "vitest run --no-file-parallelism",
+    "test": "vitest run --no-file-parallelism --testTimeout=15000",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",

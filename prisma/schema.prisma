@@ -160,6 +160,8 @@ model Order {
   updatedAt         DateTime        @updatedAt
   quotes            QuoteSnapshot[]
   payment           Payment?
+  fulfillment       Fulfillment?
+  invoice           Invoice?
 
   @@index([userId, createdAt])
 }
@@ -177,6 +179,8 @@ model Payment {
   currency          String           @default("INR")
   state             String           @default("CREATED")
   providerReference String?
+  capturedPaise     Int              @default(0)
+  releasedPaise     Int              @default(0)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
   attempts          PaymentAttempt[]
@@ -219,6 +223,81 @@ model Refund {
   reason      String?
   createdAt   DateTime  @default(now())
   resolvedAt  DateTime?
+}
+
+model Fulfillment {
+  id        String           @id @default(uuid()) @db.Uuid
+  orderId   String           @unique @db.Uuid
+  order     Order            @relation(fields: [orderId], references: [id])
+  state     String           @default("START_PENDING")
+  session   ChargingSession?
+  createdAt DateTime         @default(now())
+}
+
+model ChargingSession {
+  id               String         @id @default(uuid()) @db.Uuid
+  fulfillmentId    String         @unique @db.Uuid
+  fulfillment      Fulfillment    @relation(fields: [fulfillmentId], references: [id])
+  state            String         @default("START_PENDING")
+  pendingRequestId String?        @db.Uuid
+  startedAt        DateTime?
+  endedAt          DateTime?
+  energyWh         Int            @default(0)
+  measuredAt       DateTime?
+  nextPollAt       DateTime?
+  updatedAt        DateTime       @updatedAt
+  readings         MeterReading[]
+  events           SessionEvent[]
+
+  @@index([state, nextPollAt])
+}
+
+model MeterReading {
+  id         String          @id @default(uuid()) @db.Uuid
+  sessionId  String          @db.Uuid
+  session    ChargingSession @relation(fields: [sessionId], references: [id])
+  measuredAt DateTime
+  energyWh   Int
+  messageId  String          @unique @db.Uuid
+
+  @@unique([sessionId, measuredAt])
+}
+
+model SessionEvent {
+  id        String          @id @default(uuid()) @db.Uuid
+  sessionId String          @db.Uuid
+  session   ChargingSession @relation(fields: [sessionId], references: [id])
+  kind      String
+  detail    Json
+  createdAt DateTime        @default(now())
+
+  @@index([sessionId, createdAt])
+}
+
+// Simulator-only tax fixture. Live invoicing requires reviewed commercial tax rules.
+model TaxPolicy {
+  id            String    @id
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  rateBps       Int
+  mode          String    @default("SIMULATOR")
+  invoices      Invoice[]
+}
+
+model Invoice {
+  id            String    @id @default(uuid()) @db.Uuid
+  orderId       String    @unique @db.Uuid
+  order         Order     @relation(fields: [orderId], references: [id])
+  taxPolicyId   String
+  taxPolicy     TaxPolicy @relation(fields: [taxPolicyId], references: [id])
+  energyWh      Int
+  ratePaiseKwh  Int
+  subtotalPaise Int
+  taxPaise      Int
+  totalPaise    Int
+  state         String    @default("PENDING")
+  mode          String    @default("SIMULATOR")
+  createdAt     DateTime  @default(now())
 }
 
 model QuoteSnapshot {

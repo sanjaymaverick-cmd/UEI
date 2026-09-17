@@ -10,6 +10,10 @@
       "bundleIdentifier": "in.uei.charging.demo",
       "supportsTablet": true
     },
-    "plugins": ["expo-secure-store"]
+    "plugins": [
+      "expo-secure-store",
+      ["expo-camera", { "cameraPermission": "Allow UEI to scan a charger QR code.", "recordAudioAndroid": false }],
+      ["expo-location", { "locationWhenInUsePermission": "Allow UEI to find chargers near your location." }]
+    ]
   }
 }

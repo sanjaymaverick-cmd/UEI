@@ -56,6 +56,7 @@ export async function enqueue(
       payload: json(payload),
     },
   });
+  return payload.messageId;
 }
 export async function beginTransaction(tx: Tx, userId: string, kind: string) {
   const id = randomUUID();

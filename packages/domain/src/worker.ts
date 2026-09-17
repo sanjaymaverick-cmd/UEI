@@ -9,12 +9,15 @@ import {
 } from "./protocol";
 import { paymentAuthPayloadSchema, PaymentOrchestrator } from "./payments";
 import { audit, enqueue, json, reconcile } from "./persistence";
+import { pollCharging, rejectCharging } from "./charging";
+import { SettlementService } from "./settlement";
 
 export class OutboxWorker {
   private running = false;
   constructor(
     private readonly adapter: UeiChargingProtocol = new SimulatorAdapter(),
     private readonly payments: PaymentOrchestrator = new PaymentOrchestrator(),
+    private readonly settlement: SettlementService = new SettlementService(),
   ) {}
   async tick() {
     if (this.running) return;
@@ -48,6 +51,10 @@ export class OutboxWorker {
             await this.processPaymentAuth(event);
             continue;
           }
+          if (["PAYMENT_CAPTURE", "PAYMENT_RELEASE", "PAYMENT_REFUND"].includes(event.kind)) {
+            await this.settlement.process(event);
+            continue;
+          }
           const request = requestSchema.parse(event.payload);
           const submission = await this.adapter.submit(request); // Never inside a DB transaction.
           await atomic(async (tx) => {
@@ -63,6 +70,7 @@ export class OutboxWorker {
               where: { id: event.transactionId },
             });
             if (submission.ack === "NACK") {
+              if (request.action === "update") await rejectCharging(tx, event.transactionId, event.messageId, "Provider rejected charging command.");
               const order = await tx.order.findUnique({
                 where: { transactionId: event.transactionId },
               });
@@ -134,6 +142,7 @@ export class OutboxWorker {
         }
       }
       await this.reconcileTimeouts();
+      await atomic(pollCharging);
     } finally {
       this.running = false;
     }
@@ -152,7 +161,7 @@ export class OutboxWorker {
             leaseUntil: null,
           },
         });
-        if (event.kind === "REQUEST" || event.kind === "PAYMENT_AUTH")
+        if (event.kind === "REQUEST" || event.kind.startsWith("PAYMENT_"))
           await reconcile(
             tx,
             event.transactionId,
@@ -263,7 +272,7 @@ export class OutboxWorker {
     await atomic(async (tx) => {
       const pending = await tx.order.findMany({
         where: {
-          state: { in: ["SELECT_PENDING", "INIT_PENDING", "CONFIRM_PENDING"] },
+          state: { in: ["SELECT_PENDING", "INIT_PENDING", "CONFIRM_PENDING", "START_PENDING", "STOP_PENDING"] },
           updatedAt: { lt: cutoff },
         },
         take: 100,
@@ -272,6 +281,8 @@ export class OutboxWorker {
         SELECT_PENDING: "select",
         INIT_PENDING: "init",
         CONFIRM_PENDING: "confirm",
+        START_PENDING: "update",
+        STOP_PENDING: "update",
       };
       for (const order of pending) {
         const action = actionByState[order.state]!;
@@ -300,6 +311,12 @@ export class OutboxWorker {
           payment.transactionId,
           `PAYMENT_TIMEOUT:${payment.id}`,
         );
+      const staleSessions = await tx.chargingSession.findMany({
+        where: { state: { in: ["CHARGING", "STOP_PENDING", "STOP_FAILED"] }, measuredAt: { lt: cutoff } },
+        include: { fulfillment: { include: { order: true } } }, take: 100,
+      });
+      for (const session of staleSessions)
+        await reconcile(tx, session.fulfillment.order.transactionId, `SESSION_STATUS:${session.id}`);
       const searches = await tx.discoveryRequest.findMany({
         where: { closesAt: { lt: new Date() }, results: { none: {} } },
         take: 100,

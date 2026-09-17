@@ -112,8 +112,10 @@ export class OrderService {
     const order = await db.order.findFirst({
       where: { id, userId },
       include: {
+        fulfillment: { include: { session: true } },
+        invoice: true,
         quotes: { orderBy: { createdAt: "desc" } },
-        payment: { include: { attempts: { orderBy: { createdAt: "asc" } } } },
+        payment: { include: { attempts: { orderBy: { createdAt: "asc" } }, refunds: true } },
       },
     });
     if (!order) throw new DomainError("NOT_FOUND", "Order not found.", 404);

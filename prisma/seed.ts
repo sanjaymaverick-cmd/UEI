@@ -1,6 +1,10 @@
 import { db } from "../packages/database/src";
 
 async function seed() {
+  await db.taxPolicy.upsert({
+    where: { id: "simulator-zero-tax" }, update: {},
+    create: { id: "simulator-zero-tax", effectiveFrom: new Date("2020-01-01T00:00:00Z"), rateBps: 0, mode: "SIMULATOR" },
+  });
   // Illustrative local fixtures; not a verified vehicle specification catalogue.
   for (const [makeId, makeName, modelId, modelName, variantId, battery] of [
     ["tata", "Tata", "nexon", "Nexon EV", "nexon-demo", "40.5"],

@@ -4,6 +4,8 @@ export * from "./vehicles";
 export * from "./discovery";
 export * from "./orders";
 export * from "./payments";
+export * from "./charging";
+export * from "./settlement";
 export * from "./callbacks";
 export * from "./trace";
 export * from "./worker";

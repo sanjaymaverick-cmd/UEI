@@ -6,7 +6,7 @@ import type { Callback } from "./core";
 export const requestSchema = z.object({
   transactionId: z.uuid(),
   messageId: z.uuid(),
-  action: z.enum(["search", "select", "init", "confirm"]),
+  action: z.enum(["search", "select", "init", "confirm", "update", "status"]),
   providerId: z.string(),
   data: z.record(z.string(), z.unknown()),
   timestamp: z.iso.datetime(),
@@ -91,6 +91,17 @@ export class SimulatorAdapter implements UeiChargingProtocol {
         payload.confirmation = {
           providerOrderId: `${providerId}-${String(request.data.orderId ?? "order")}`,
         };
+      if (request.action === "update" || request.action === "status") {
+        const now = Date.now();
+        const startedAt = typeof request.data.startedAt === "string"
+          ? new Date(request.data.startedAt).getTime() : now;
+        payload.session = {
+          sessionId: String(request.data.sessionId),
+          state: request.data.command === "end-charging" ? "COMPLETED" : "CHARGING",
+          energyWh: Math.max(Number(request.data.energyWh ?? 0), Math.floor(Math.max(0, now - startedAt) * 11000 / 3600000)),
+          measuredAt: new Date(now).toISOString(),
+        };
+      }
       if (scenario === "callback-error")
         payload.error = "Simulated provider rejection";
       return {

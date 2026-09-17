@@ -7,7 +7,7 @@ export type Tx = Prisma.TransactionClient;
 export async function atomic<T>(work: (tx: Tx) => Promise<T>): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {
-      return await db.$transaction(work, { isolationLevel: "Serializable" });
+      return await db.$transaction(work, { isolationLevel: "Serializable", maxWait: 10000 });
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&

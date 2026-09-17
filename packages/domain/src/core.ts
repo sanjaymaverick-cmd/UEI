@@ -99,13 +99,20 @@ export const itemSchema = z
 export const confirmationSchema = z
   .object({ providerOrderId: z.string().min(1).max(200) })
   .strict();
+export const sessionUpdateSchema = z.object({
+  sessionId: idSchema,
+  state: z.enum(["CHARGING", "COMPLETED"]),
+  energyWh: z.number().int().min(0).max(2147483647),
+  measuredAt: z.iso.datetime(),
+}).strict();
 export const callbackSchema = z
   .object({
     transactionId: idSchema,
     messageId: idSchema,
     requestMessageId: idSchema,
     providerId: z.string().min(1).max(100),
-    action: z.enum(["on_search", "on_select", "on_init", "on_confirm"]),
+    action: z.enum(["on_search", "on_select", "on_init", "on_confirm", "on_update", "on_status"]),
+    session: sessionUpdateSchema.optional(),
     items: z.array(itemSchema).max(100).optional(),
     quote: z
       .object({
@@ -127,7 +134,9 @@ export const callbackSchema = z
       on_select: "quote",
       on_init: "paymentTerms",
       on_confirm: "confirmation",
-    }[value.action] as "items" | "quote" | "paymentTerms" | "confirmation";
+      on_update: "session",
+      on_status: "session",
+    }[value.action] as "items" | "quote" | "paymentTerms" | "confirmation" | "session";
     if (!value[key])
       ctx.addIssue({ code: "custom", message: `Missing ${key}`, path: [key] });
   });

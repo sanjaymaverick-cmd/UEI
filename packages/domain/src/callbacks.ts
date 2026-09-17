@@ -8,6 +8,7 @@ import {
   type Callback,
 } from "./core";
 import { audit, json, reconcile } from "./persistence";
+import { applyChargingCallback } from "./charging";
 
 export class CallbackService {
   receive(raw: unknown) {
@@ -72,6 +73,8 @@ export class CallbackService {
     if (action !== `on_${request.action}`) {
       status = "OUT_OF_ORDER";
       await reconcile(tx, transactionId, `OUT_OF_ORDER:${messageId}`);
+    } else if (action === "on_update" || action === "on_status") {
+      status = await applyChargingCallback(tx, payload, request.payload);
     } else if (action === "on_search") {
       const search = await tx.discoveryRequest.findUnique({
         where: { transactionId },

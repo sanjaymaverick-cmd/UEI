@@ -42,9 +42,11 @@ foreach ($project in $projects) {
 }
 ```
 
+Verified on 2026-09-17 after completing charging fulfillment and financial closure (Milestones 3 and 4: `update`/`on_update` protocol actions, live session dashboard, invoicing, capture/release/refund): all 35 tests passed with database tests enabled, lint passed, and all seven workspace type checks passed. Validation used the docker-compose PostgreSQL/PostGIS and Redis containers, with an isolated `uei_test` database, all three committed migrations, and fixture seed.
+
 Verified on 2026-09-16 after adding payment authorization and order confirmation (`confirm`/`on_confirm`): all 29 tests passed with database tests enabled, lint passed, and all seven workspace type checks passed. Validation used the docker-compose PostgreSQL/PostGIS and Redis containers, with an isolated `uei_test` database, the two committed migrations, and fixture seed. The standalone `apps/worker` process was separately run against these same containers and confirmed to drain the outbox over live Redis/BullMQ (not just the in-process test harness).
 
-The default test run skips seven database tests. To enable them, provision a dedicated database whose name contains `uei_test`, then run:
+The default test run skips 15 database tests. To enable them, provision a dedicated database whose name contains `uei_test`, then run:
 
 ```powershell
 $env:DATABASE_URL = 'postgresql://USER:PASSWORD@127.0.0.1:5432/uei_test'

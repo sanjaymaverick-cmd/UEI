@@ -26,17 +26,19 @@ Real payment capture and physical charger control were outside this milestone.
 
 Validation (2026-09-16): 29 Vitest tests passed (6 new: 2 unit + 4 database-backed covering authorize+confirm, decline, confirm-NACK, and payment-timeout reconciliation), ESLint passed, and all seven workspace TypeScript checks passed. Payment capture/release/refund lifecycle, real UPI PSP integration, and charging fulfillment remain out of scope for this milestone.
 
-## Milestone 3 — Charging Proof (not started)
+## Milestone 3 — Charging Proof (complete)
 
-- [ ] `Fulfillment`, `ChargingSession`, `MeterReading`, `SessionEvent` schema.
-- [ ] `update(start-charging)` / `on_update` and `update(end-charging)` / `on_update` protocol actions.
-- [ ] Live session dashboard + SSE session projection on mobile.
+- [x] `Fulfillment`, `ChargingSession`, `MeterReading`, `SessionEvent` schema (migration `202609170001_charging_settlement`).
+- [x] `update(start-charging)` / `on_update` and `update(end-charging)` / `on_update` protocol actions (`packages/domain/src/charging.ts`).
+- [x] Live session dashboard + SSE session projection on mobile (`ActiveChargingScreen`, `useOrder` hook, `apps/mobile/src/useOrder.ts`).
 
-## Milestone 4 — Financial Closure (not started)
+## Milestone 4 — Financial Closure (complete)
 
-- [ ] `Invoice`, `TaxPolicy` schema (effective-dated GST rules).
-- [ ] Final reconciliation of provider energy/session data against order amount.
-- [ ] Payment capture/release against the `AUTHORIZED` payment created in Milestone 2; `Refund` flow.
+- [x] `Invoice`, `TaxPolicy` schema (effective-dated GST rules) (`packages/domain/src/settlement.ts`).
+- [x] Final reconciliation of provider energy/session data against order amount (`AMOUNT_EXCEEDS_AUTHORIZATION` reconciliation issue in `prepareSettlement`).
+- [x] Payment capture/release against the `AUTHORIZED` payment created in Milestone 2; `Refund` flow (`SettlementService`, admin refund endpoint and console panel).
+
+Validation (2026-09-17): all seven workspace TypeScript checks passed, ESLint passed, and 35 Vitest tests passed (6 test files, including the database-backed `charging.test.ts` and `integration.test.ts` suites) against isolated PostgreSQL with all three committed migrations and fixture seed. Fixed two environment-specific test flakes uncovered during validation: `atomic()` now passes `maxWait: 10000` to `$transaction` (`packages/database/src/index.ts`), and `pnpm test` now passes `--testTimeout=15000` — both address a cold-connection-pool cost on the first serializable transaction of a freshly started test file on this machine, not a logic defect. Extended the admin console with charging-session, invoice, and refund-issuing panels, which were the one gap between the backend/mobile work and the admin trace already returning that data. Real UPI/tax-policy/PSP integration, native Android/iOS execution, and live ONIX interoperability remain out of scope / unverified.
 
 ## Milestone 5 — Pilot Ready (not started)
 

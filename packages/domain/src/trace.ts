@@ -14,7 +14,7 @@ export class TraceService {
     });
     if (!transaction)
       throw new DomainError("NOT_FOUND", "Transaction not found.", 404);
-    const [audit, issues, outbox, payment] = await Promise.all([
+    const [audit, issues, outbox, payment, order] = await Promise.all([
       db.auditLog.findMany({
         where: { transactionId: id },
         orderBy: { id: "asc" },
@@ -35,10 +35,12 @@ export class TraceService {
         include: {
           attempts: { orderBy: { createdAt: "asc" } },
           events: { orderBy: { createdAt: "asc" } },
+          refunds: true,
         },
       }),
+      db.order.findUnique({ where: { transactionId: id }, include: { invoice: true, fulfillment: { include: { session: { include: { events: { orderBy: { createdAt: "desc" }, take: 100 }, readings: { orderBy: { measuredAt: "desc" }, take: 100 } } } } } } }),
     ]);
-    return { ...transaction, audit, issues, outbox, payment };
+    return { ...transaction, audit, issues, outbox, payment, order };
   }
   async events(userId: string, transactionId: string, after: number) {
     if (
