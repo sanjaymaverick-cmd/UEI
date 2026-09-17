@@ -42,7 +42,7 @@ Validation (2026-09-17): all seven workspace TypeScript checks passed, ESLint pa
 
 ## Milestone 5 — Pilot Ready (in progress)
 
-- [ ] Real Beckn-ONIX signing/schema-validation/routing (currently `infra/onix/` is a placeholder README only).
+- [ ] Real Beckn-ONIX signing/schema-validation/routing: scaffolding added (2026-09-17) — Ed25519/BLAKE2b-512 signing per the Beckn HTTP-signature convention, a `UeiChargingProtocol`-conformant `OnixAdapter` (envelope mapping, signing, ack-only submit), and the inbound signature-verification/callback-mapping half, all unit-tested but **not wired into the running app or checked against a real network**. See `infra/onix/README.md` for exactly what real-world inputs (registry, schemas, credentials) still block turning this on.
 - [x] Native Android emulator/device run: built and installed the debug dev-client APK via `expo run:android` on a local Pixel 7 / API 35 (`google_apis_playstore`) AVD, launched it, and completed a real sign-in (OTP request → verify → token issuance → navigation into the authenticated Vehicles screen) against the actual API/Postgres/Redis stack running on the host (2026-09-17).
 - [ ] iOS build validation pass (unreachable from this Windows machine; requires macOS/Xcode).
 - [x] `.github/workflows` CI: typecheck, lint and the full test suite (including the opt-in database tests) against Postgres/PostGIS and Redis service containers on every push/PR to `master` (`.github/workflows/ci.yml`).
@@ -57,6 +57,14 @@ First real native execution of the mobile app. Notes for the next person hitting
 - The API/worker must bind a host that's actually reachable: `curl http://localhost:...` can hang indefinitely on this machine because `localhost` resolves to `::1` first and the app only binds the IPv4 `HOST` from `.env`; use `127.0.0.1` explicitly when checking liveness from the host shell.
 
 Android/iOS native execution beyond this one smoke test (release builds, deeper feature coverage, physical devices) remains unverified.
+
+### Continuation: ONIX signing/adapter scaffolding (2026-09-17)
+
+- Added `packages/domain/src/becknSigning.ts` (Ed25519 sign/verify over a BLAKE2b-512 digest, Beckn-style `Authorization` header build/parse, expiry-checked verification) and `packages/domain/src/onix.ts` (`BecknContext`/`BecknEnvelope` types, a required-everything `OnixAdapterConfig`, `OnixAdapter implements UeiChargingProtocol`, `verifyInboundCallback`, `mapEnvelopeToCallback`).
+- `OnixAdapter.submit()` signs and POSTs the mapped envelope and returns `{ack, callbacks: []}` — deliberately never synthesizes callbacks the way `SimulatorAdapter` does, since real `on_*` results arrive later at the BAP's own endpoint, not in this response.
+- Nothing here is reachable from the running app: no `PROTOCOL_MODE=live` path exists, `@uei/config` still hard-fails on `PROTOCOL_MODE=live`, and `OnixAdapter` requires a real `SchemaValidator` (no permissive default) to even construct.
+- Validation: 11 new Vitest tests (signing round trip/tamper/expiry/header parsing, adapter construction/submit/NACK/schema-rejection), all passing alongside the existing 35 (46 total); ESLint and all seven workspace TypeScript checks passed.
+- The signing-string/digest details are implemented from the public Beckn Protocol Network convention, not verified against an authoritative spec document for a specific network — see `infra/onix/README.md` for what remains before this can be trusted for real interop or wired in.
 
 ## Continuation: mobile session recovery (2026-09-16)
 
