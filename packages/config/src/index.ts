@@ -1,5 +1,10 @@
-import "dotenv/config";
 import { z } from "zod";
+
+try {
+  process.loadEnvFile();
+} catch {
+  // No .env file present; rely on the environment already having what's needed.
+}
 
 const schema = z.object({
   NODE_ENV: z
@@ -12,7 +17,6 @@ const schema = z.object({
   ADMIN_ORIGIN: z.url().default("http://localhost:5173"),
   AUTH_SECRET: z.string().min(32),
   CALLBACK_SECRET: z.string().min(32),
-  OTP_PROVIDER: z.literal("development").default("development"),
   DEV_OTP: z
     .string()
     .regex(/^\d{6}$/)

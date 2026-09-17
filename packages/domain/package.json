@@ -9,7 +9,6 @@
   "dependencies": {
     "@uei/database": "workspace:*",
     "@uei/config": "workspace:*",
-    "zod": "^4.1.11",
-    "jose": "^6.1.0"
+    "zod": "^4.1.11"
   }
 }

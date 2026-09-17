@@ -15,7 +15,6 @@
     "@uei/domain": "workspace:*",
     "@uei/config": "workspace:*",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2",
     "express": "^5.1.0",
     "helmet": "^8.1.0"
   },
